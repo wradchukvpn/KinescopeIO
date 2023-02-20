@@ -45,5 +45,5 @@ dependencies {
 
     // https://mvnrepository.com/artifact/com.google.android.exoplayer/exoplayer
     // The ExoPlayer library (all modules).
-    implementation("com.google.android.exoplayer:exoplayer:2.16.0")
+    implementation("com.google.android.exoplayer:exoplayer:2.18.3")
 }

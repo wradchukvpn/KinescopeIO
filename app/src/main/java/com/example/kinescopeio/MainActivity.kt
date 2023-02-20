@@ -6,13 +6,11 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.exoplayer2.*
 import com.google.android.exoplayer2.drm.*
-import com.google.android.exoplayer2.source.MediaSource
 import com.google.android.exoplayer2.source.dash.DashMediaSource
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource
 import com.google.android.exoplayer2.ui.PlayerView
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
 import java.io.IOException
-import java.lang.Exception
 import java.net.URL
 import java.util.*
 import javax.net.ssl.HttpsURLConnection
@@ -21,6 +19,7 @@ import javax.net.ssl.HttpsURLConnection
 object Const {
     private const val VIDEO_ID = "2c017218-2bad-4ace-8077-24dec0262434"
     const val KINESCOPE_URL = "https://kinescope.io/$VIDEO_ID/master.mpd"
+    val DRM_SCHEME_UUID = C.WIDEVINE_UUID // The UUID for the Widevine DRM scheme
 }
 
 class MainActivity : AppCompatActivity() {
@@ -36,12 +35,10 @@ class MainActivity : AppCompatActivity() {
     private fun playVideo(context: Context, url: String) {
         val playerView = findViewById<PlayerView>(R.id.exo_player_view)
 
-        val drmSchemeUuid = C.PLAYREADY_UUID // The UUID for the Widevine DRM scheme
-
-        val drmSessionManager = DefaultDrmSessionManager.Builder()
-            .setUuidAndExoMediaDrmProvider(drmSchemeUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
-            .setMultiSession(true)
-            .build(mediaDrmCallback)
+//        val drmSessionManager = DefaultDrmSessionManager.Builder()
+//            .setUuidAndExoMediaDrmProvider(drmSchemeUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
+//            .setMultiSession(true)
+//            .build(mediaDrmCallback)
 
         val userAgent = "Android 13"
         val dataSourceFactory = DefaultHttpDataSource.Factory()
@@ -51,10 +48,21 @@ class MainActivity : AppCompatActivity() {
 
 
         val mediaSourceFactory = DashMediaSource.Factory(dashChunkSourceFactory, dataSourceFactory)
-            .setDrmSessionManager(drmSessionManager)
-        val mediaSource = mediaSourceFactory.createMediaSource(Uri.parse(url))
 
-        val player = SimpleExoPlayer.Builder(context).build()
+           // .setDrmSessionManager(drmSessionManager)
+
+       val mediaItem = MediaItem.Builder()
+           .setUri(Uri.parse(url))
+          // .setMimeType("video/mp4")
+           .setDrmConfiguration(
+               MediaItem.DrmConfiguration.Builder(Const.DRM_SCHEME_UUID)
+                   .setMultiSession(true)
+                   .build()
+           )
+           .build()
+        val mediaSource = mediaSourceFactory.createMediaSource(mediaItem)
+
+        val player = ExoPlayer.Builder(context).build()
         player.addListener( object: Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 println("Loge onPlayerError: ${error.message}")
@@ -68,44 +76,15 @@ class MainActivity : AppCompatActivity() {
 
                 super.onPlayerErrorChanged(error)
             }
+
         })
         player.playWhenReady = false
         playerView.player = player
         player.setMediaSource(mediaSource)
+
         player.prepare()
 
 
-
-    }
-
-    private val drmEventListener = object : DrmSessionEventListener {
-        override fun onDrmSessionAcquired(windowIndex: Int, mediaPeriodId: MediaSource.MediaPeriodId?) {
-            super.onDrmSessionAcquired(windowIndex, mediaPeriodId)
-        }
-
-        override fun onDrmSessionAcquired(windowIndex: Int, mediaPeriodId: MediaSource.MediaPeriodId?, state: Int) {
-            super.onDrmSessionAcquired(windowIndex, mediaPeriodId, state)
-        }
-
-        override fun onDrmKeysLoaded(windowIndex: Int, mediaPeriodId: MediaSource.MediaPeriodId?) {
-            super.onDrmKeysLoaded(windowIndex, mediaPeriodId)
-        }
-
-        override fun onDrmSessionManagerError(windowIndex: Int, mediaPeriodId: MediaSource.MediaPeriodId?, error: Exception) {
-            super.onDrmSessionManagerError(windowIndex, mediaPeriodId, error)
-        }
-
-        override fun onDrmKeysRestored(windowIndex: Int, mediaPeriodId: MediaSource.MediaPeriodId?) {
-            super.onDrmKeysRestored(windowIndex, mediaPeriodId)
-        }
-
-        override fun onDrmKeysRemoved(windowIndex: Int, mediaPeriodId: MediaSource.MediaPeriodId?) {
-            super.onDrmKeysRemoved(windowIndex, mediaPeriodId)
-        }
-
-        override fun onDrmSessionReleased(windowIndex: Int, mediaPeriodId: MediaSource.MediaPeriodId?) {
-            super.onDrmSessionReleased(windowIndex, mediaPeriodId)
-        }
 
     }
 
@@ -138,7 +117,7 @@ class MainActivity : AppCompatActivity() {
 
         val responseCode = connection.responseCode
         if (responseCode != HttpsURLConnection.HTTP_OK) {
-            throw IOException("Key request failed with error code $responseCode")
+            throw IOException("Key request failed with error code $responseCode, url = ${connection.url}")
         }
 
         val response = connection.inputStream.readBytes()
