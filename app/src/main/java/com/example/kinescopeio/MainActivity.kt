@@ -5,21 +5,27 @@ import android.net.Uri
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatActivity
 import com.google.android.exoplayer2.*
-import com.google.android.exoplayer2.drm.*
+import com.google.android.exoplayer2.mediacodec.MediaCodecInfo
+import com.google.android.exoplayer2.mediacodec.MediaCodecSelector
 import com.google.android.exoplayer2.source.dash.DashMediaSource
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource
-import com.google.android.exoplayer2.ui.PlayerView
+import com.google.android.exoplayer2.source.dash.manifest.DashManifestParser
+import com.google.android.exoplayer2.ui.StyledPlayerView
+import com.google.android.exoplayer2.upstream.DataSpec
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource
-import java.io.IOException
-import java.net.URL
-import java.util.*
-import javax.net.ssl.HttpsURLConnection
 
 
 object Const {
-    private const val VIDEO_ID = "2c017218-2bad-4ace-8077-24dec0262434"
+    // https://kinescope.io/7b6f3aa3-8554-43c3-abd7-a3a17fa32f04/master.mpd
+
+    private const val ID = "7b6f3aa3-8554-43c3-abd7-a3a17fa32f04"
+    private const val VIDEO_ID_DEMO_PROJECT = "2c017218-2bad-4ace-8077-24dec0262434"
+    private const val VIDEO_ID = VIDEO_ID_DEMO_PROJECT
+
     const val KINESCOPE_URL = "https://kinescope.io/$VIDEO_ID/master.mpd"
-    val DRM_SCHEME_UUID = C.WIDEVINE_UUID // The UUID for the Widevine DRM scheme
+    const val LICENSE_SERVER = "https://license.kinescope.io/v1/vod/$VIDEO_ID/acquire/widevine"
+    val DRM_SCHEME_UUID = C.CLEARKEY_UUID // The UUID for the Widevine DRM scheme
+    const val USER_AGENT = "Android 13"
 }
 
 class MainActivity : AppCompatActivity() {
@@ -33,7 +39,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun playVideo(context: Context, url: String) {
-        val playerView = findViewById<PlayerView>(R.id.exo_player_view)
+        val playerView = findViewById<StyledPlayerView>(R.id.exo_player_view)
 
 //        val drmSessionManager = DefaultDrmSessionManager.Builder()
 //            .setUuidAndExoMediaDrmProvider(drmSchemeUuid, FrameworkMediaDrm.DEFAULT_PROVIDER)
@@ -42,21 +48,22 @@ class MainActivity : AppCompatActivity() {
 
         val userAgent = "Android 13"
         val dataSourceFactory = DefaultHttpDataSource.Factory()
-            .setUserAgent(userAgent)
+            .setUserAgent(Const.USER_AGENT)
             .setAllowCrossProtocolRedirects(true)
+
         val dashChunkSourceFactory = DefaultDashChunkSource.Factory(dataSourceFactory)
 
 
         val mediaSourceFactory = DashMediaSource.Factory(dashChunkSourceFactory, dataSourceFactory)
 
-           // .setDrmSessionManager(drmSessionManager)
-
        val mediaItem = MediaItem.Builder()
            .setUri(Uri.parse(url))
-          // .setMimeType("video/mp4")
+           .setMimeType("video/mp4")
            .setDrmConfiguration(
                MediaItem.DrmConfiguration.Builder(Const.DRM_SCHEME_UUID)
                    .setMultiSession(true)
+                   .setScheme(Const.DRM_SCHEME_UUID)
+                   //.setLicenseUri(Const.LICENSE_SERVER)
                    .build()
            )
            .build()
@@ -81,55 +88,8 @@ class MainActivity : AppCompatActivity() {
         player.playWhenReady = false
         playerView.player = player
         player.setMediaSource(mediaSource)
-
         player.prepare()
 
-
-
-    }
-
-    private val mediaDrmCallback = object : MediaDrmCallback {
-        override fun executeProvisionRequest(uuid: UUID, request: ExoMediaDrm.ProvisionRequest): ByteArray {
-            println("Loge executeProvisionRequest: $uuid")
-            println("Loge executeProvisionRequest: ${request.defaultUrl}")
-            return executeProvisionRequest(uuid, request)
-        }
-
-        override fun executeKeyRequest(uuid: UUID, request: ExoMediaDrm.KeyRequest): ByteArray {
-            println("Loge executeKeyRequest: $uuid")
-            println("Loge executeKeyRequest: ${request.licenseServerUrl}")
-
-            // Return the key response to the MediaDrm instance
-            //return sendKeyRequest(request.data)
-            return executeKeyRequest(uuid, request)
-        }
-
-    }
-
-    private fun sendKeyRequest(request: ByteArray): ByteArray {
-        val url = "https://license.kinescope.io/v1/vod/2c017218-2bad-4ace-8077-24dec0262434/acquire/clearkey?token=e2719d58-a985-b3c9-781a-b030af78d30e"
-        val connection = URL(url).openConnection() as HttpsURLConnection
-        connection.requestMethod = "POST"
-        connection.doOutput = true
-        connection.setRequestProperty("Content-Type", "application/octet-stream")
-        connection.setRequestProperty("Content-Length", request.size.toString())
-        connection.outputStream.write(request)
-
-        val responseCode = connection.responseCode
-        if (responseCode != HttpsURLConnection.HTTP_OK) {
-            throw IOException("Key request failed with error code $responseCode, url = ${connection.url}")
-        }
-
-        val response = connection.inputStream.readBytes()
-        connection.disconnect()
-        return response
     }
 
 }
-
-
-
-
-
-
-
